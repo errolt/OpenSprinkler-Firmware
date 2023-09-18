@@ -34,7 +34,7 @@
 		ESP8266WebServer *update_server = NULL;
 		OTF::OpenThingsFramework *otf = NULL;
 		DNSServer *dns = NULL;
-		ENC28J60lwIP eth(PIN_ETHER_CS); // ENC28J60 lwip for wired Ether
+		//ENC28J60lwIP eth(PIN_ETHER_CS); // ENC28J60 lwip for wired Ether
 		bool useEth = false; // tracks whether we are using WiFi or wired Ether connection
 		static uint16_t led_blink_ms = LED_FAST_BLINK;
 	#else
@@ -181,7 +181,7 @@ void ui_state_machine() {
 					os.lcd.clear(0, 1);
 					os.lcd.setCursor(0, 0);
 					#if defined(ESP8266)
-					if (useEth) { os.lcd.print(eth.gatewayIP()); }
+					if (useEth) {  }
 					else { os.lcd.print(WiFi.gatewayIP()); }
 					#else
 					{ os.lcd.print(Ethernet.gatewayIP()); }
@@ -197,7 +197,7 @@ void ui_state_machine() {
 				os.lcd.clear(0, 1);
 				os.lcd.setCursor(0, 0);
 				#if defined(ESP8266)
-				if (useEth) { os.lcd.print(eth.localIP()); }
+				if (useEth) { }
 				else { os.lcd.print(WiFi.localIP()); }
 				#else
 				{ os.lcd.print(Ethernet.localIP()); }
@@ -1522,7 +1522,7 @@ void push_message(int type, uint32_t lval, float fval, const char* sval) {
 						IPAddress _ip;
 						if (useEth) {
 							//_ip = Ethernet.localIP();
-							_ip = eth.localIP();
+							
 						} else {
 							_ip = WiFi.localIP();
 						}

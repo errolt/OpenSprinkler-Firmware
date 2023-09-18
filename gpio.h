@@ -36,9 +36,15 @@
 #define NXP_INVERT_REG 4
 #define NXP_CONFIG_REG 6
 
+#define MCP_INPUT_REG  0x12
+#define MCP_OUTPUT_REG 0x14
+#define MCP_INVERT_REG 0x02
+#define MCP_CONFIG_REG 0x00
+
 #define IOEXP_TYPE_8574 0
 #define IOEXP_TYPE_8575 1
 #define IOEXP_TYPE_9555 2
+#define IOEXP_TYPE_MCP23017 3
 #define IOEXP_TYPE_UNKNOWN 254
 #define IOEXP_TYPE_NONEXIST 255
 
@@ -85,6 +91,7 @@ public:
 	void shift_out(uint8_t plat, uint8_t pclk, uint8_t pdat, uint8_t v);
 };
 
+
 class PCF8575 : public IOEXP {
 public:
 	PCF8575(uint8_t addr) { address = addr; type = IOEXP_TYPE_8575; }
@@ -95,6 +102,17 @@ public:
 	void i2c_write(uint8_t reg, uint16_t v);
 private:
 	uint16_t inputmask = 0;
+};
+class MCP23017 : public IOEXP {
+public:
+	MCP23017(uint8_t addr) { address = addr; type = IOEXP_TYPE_MCP23017; }
+	void pinMode(uint8_t pin, uint8_t IOMode) {
+		if(IOMode!=INPUT) inputmask &= (0<<pin);
+	}
+	uint16_t i2c_read(uint8_t reg);
+	void i2c_write(uint8_t reg, uint16_t v);
+private:
+	uint16_t inputmask = 0xffff;
 };
 
 class PCF8574 : public IOEXP {

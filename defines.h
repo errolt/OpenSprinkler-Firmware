@@ -24,7 +24,7 @@
 #ifndef _DEFINES_H
 #define _DEFINES_H
 
-//#define ENABLE_DEBUG  // enable serial debug
+#define ENABLE_DEBUG  // enable serial debug
 
 typedef unsigned char byte;
 typedef unsigned long ulong;
@@ -130,7 +130,7 @@ typedef unsigned long ulong;
 	#define MAX_EXT_BOARDS    24 // allow more zones for linux-based firmwares
 #endif
 
-#define MAX_NUM_BOARDS    (1+MAX_EXT_BOARDS)  // maximum number of 8-zone boards including expanders
+#define MAX_NUM_BOARDS    (2+MAX_EXT_BOARDS)  // maximum number of 8-zone boards including expanders
 #define MAX_NUM_STATIONS  (MAX_NUM_BOARDS*8)  // maximum number of stations
 #define STATION_NAME_SIZE 32    // maximum number of characters in each station name
 #define MAX_SOPTS_SIZE    160   // maximum string option size
@@ -334,10 +334,10 @@ enum {
 	#define LCD_I2CADDR      0x3C // 128x64 OLED display I2C address
 
 	#define PIN_CURR_SENSE    A0
-	#define PIN_FREE_LIST     {} // no free GPIO pin at the moment
+	#define PIN_FREE_LIST     {12,13,14,15} // no free GPIO pin at the moment
 	#define ETHER_BUFFER_SIZE   2048
 
-	#define PIN_ETHER_CS       16 // Ethernet CS (chip select pin) is 16 on OS 3.2 and above
+	#define PIN_ETHER_CS       255 // Ethernet CS (chip select pin) is 16 on OS 3.2 and above
 
 	/* To accommodate different OS30 versions, we use software defines pins */
 	extern byte PIN_BUTTON_1;
@@ -354,52 +354,21 @@ enum {
 	extern byte PIN_SENSOR2;
 	extern byte PIN_IOEXP_INT;
 
-	/* Original OS30 pin defines */
-	//#define V0_MAIN_INPUTMASK 0b00001010 // main input pin mask
-	// pins on main PCF8574 IO expander have pin numbers IOEXP_PIN+i
-	#define V0_PIN_BUTTON_1      IOEXP_PIN+1 // button 1
-	#define V0_PIN_BUTTON_2      0           // button 2
-	#define V0_PIN_BUTTON_3      IOEXP_PIN+3 // button 3
-	#define V0_PIN_RFRX          14
-	#define V0_PIN_PWR_RX        IOEXP_PIN+0
-	#define V0_PIN_RFTX          16
-	#define V0_PIN_PWR_TX        IOEXP_PIN+2
-	#define V0_PIN_BOOST         IOEXP_PIN+6
-	#define V0_PIN_BOOST_EN      IOEXP_PIN+7
-	#define V0_PIN_SENSOR1       12 // sensor 1
-	#define V0_PIN_SENSOR2       13 // sensor 2
-
-	/* OS31 pin defines */
-	// pins on PCA9555A IO expander have pin numbers IOEXP_PIN+i
-	#define V1_IO_CONFIG         0x1F00 // config bits
-	#define V1_IO_OUTPUT         0x1F00 // output bits
-	#define V1_PIN_BUTTON_1      IOEXP_PIN+10 // button 1
-	#define V1_PIN_BUTTON_2      IOEXP_PIN+11 // button 2
-	#define V1_PIN_BUTTON_3      IOEXP_PIN+12 // button 3
-	#define V1_PIN_RFRX          14
-	#define V1_PIN_RFTX          16
-	#define V1_PIN_IOEXP_INT     12
-	#define V1_PIN_BOOST         IOEXP_PIN+13
-	#define V1_PIN_BOOST_EN      IOEXP_PIN+14
-	#define V1_PIN_LATCH_COM     IOEXP_PIN+15
-	#define V1_PIN_SENSOR1       IOEXP_PIN+8 // sensor 1
-	#define V1_PIN_SENSOR2       IOEXP_PIN+9 // sensor 2
-
 	/* OS32 pin defines */
 	// pins on PCA9555A IO expander have pin numbers IOEXP_PIN+i
-	#define V2_IO_CONFIG         0x1000 // config bits
-	#define V2_IO_OUTPUT         0x1E00 // output bits
+	#define V2_IO_CONFIG         0x0000 // config bits
+	#define V2_IO_OUTPUT         0x0000 // output bits
 	#define V2_PIN_BUTTON_1      2 // button 1
 	#define V2_PIN_BUTTON_2      0 // button 2
-	#define V2_PIN_BUTTON_3      IOEXP_PIN+12 // button 3
-	#define V2_PIN_RFTX          15
-	#define V2_PIN_BOOST         IOEXP_PIN+13
-	#define V2_PIN_BOOST_EN      IOEXP_PIN+14
-	#define V2_PIN_LATCH_COMA    IOEXP_PIN+8  // latch COM+ (anode)
-	#define V2_PIN_SRLAT         IOEXP_PIN+9  // shift register latch
-	#define V2_PIN_SRCLK         IOEXP_PIN+10 // shift register clock
-	#define V2_PIN_SRDAT         IOEXP_PIN+11 // shift register data
-	#define V2_PIN_LATCH_COMK    IOEXP_PIN+15 // latch COM- (cathode)
+	#define V2_PIN_BUTTON_3      16// button 3
+	#define V2_PIN_RFTX          255
+	#define V2_PIN_BOOST         255
+	#define V2_PIN_BOOST_EN      255
+	#define V2_PIN_LATCH_COMA    255  // latch COM+ (anode)
+	#define V2_PIN_SRLAT         255  // shift register latch
+	#define V2_PIN_SRCLK         255 // shift register clock
+	#define V2_PIN_SRDAT         255 // shift register data
+	#define V2_PIN_LATCH_COMK    255 // latch COM- (cathode)
 	#define V2_PIN_SENSOR1       3  // sensor 1
 	#define V2_PIN_SENSOR2       10 // sensor 2
 

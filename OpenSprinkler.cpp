@@ -500,47 +500,7 @@ byte OpenSprinkler::start_network() {
 
 byte OpenSprinkler::start_ether() {
 #if defined(ESP8266)
-	if(hw_rev<2) return 0;  // ethernet capability is only available after hw_rev 2
-
-	SPI.begin();
-	SPI.setBitOrder(MSBFIRST);
-	SPI.setDataMode(SPI_MODE0);
-	SPI.setFrequency(4000000);
-
-	load_hardware_mac((uint8_t*)tmp_buffer, true);
-	if (iopts[IOPT_USE_DHCP]==0) { // config static IP before calling eth.begin
-		IPAddress staticip(iopts+IOPT_STATIC_IP1);
-		IPAddress gateway(iopts+IOPT_GATEWAY_IP1);
-		IPAddress dns(iopts+IOPT_DNS_IP1);
-		IPAddress subn(iopts+IOPT_SUBNET_MASK1);
-		eth.config(staticip, gateway, subn, dns);
-	}
-	eth.setDefault();
-	if(!eth.begin((uint8_t*)tmp_buffer))	return 0;
-	lcd_print_line_clear_pgm(PSTR("Start wired link"), 1);
-
-	ulong timeout = millis()+30000; // 30 seconds time out
-	while (!eth.connected()) {
-		DEBUG_PRINT(".");
-		delay(1000);
-		if(millis()>timeout) return 0;
-	}
-
-	DEBUG_PRINTLN();
-	DEBUG_PRINT("eth.ip:");
-	DEBUG_PRINTLN(eth.localIP());
-	DEBUG_PRINT("eth.dns:");
-	DEBUG_PRINTLN(WiFi.dnsIP());
-
-	if (iopts[IOPT_USE_DHCP]) {
-		memcpy(iopts+IOPT_STATIC_IP1, &(eth.localIP()[0]), 4);
-		memcpy(iopts+IOPT_GATEWAY_IP1, &(eth.gatewayIP()[0]),4);
-		memcpy(iopts+IOPT_DNS_IP1, &(WiFi.dnsIP()[0]), 4); // todo: lwip need dns ip
-		memcpy(iopts+IOPT_SUBNET_MASK1, &(eth.subnetMask()[0]), 4);
-		iopts_save();
-	}
-
-	return 1;
+	return 0;  // ethernet capability is only available after hw_rev 2
 
 #else
 	Ethernet.init(PIN_ETHER_CS);  // make sure to call this before any Ethernet calls
@@ -717,90 +677,31 @@ void OpenSprinkler::begin() {
 #if defined(ESP8266) // ESP8266 specific initializations
 
 	/* check hardware type */
-	if(detect_i2c(ACDR_I2CADDR)) hw_type = HW_TYPE_AC;
-	else if(detect_i2c(DCDR_I2CADDR)) hw_type = HW_TYPE_DC;
-	else if(detect_i2c(LADR_I2CADDR)) hw_type = HW_TYPE_LATCH;
+	hw_type = HW_TYPE_AC;
 
-	/* detect hardware revision type */
-	if(detect_i2c(MAIN_I2CADDR)) {	// check if main PCF8574 exists
-		/* assign revision 0 pins */
-		PIN_BUTTON_1 = V0_PIN_BUTTON_1;
-		PIN_BUTTON_2 = V0_PIN_BUTTON_2;
-		PIN_BUTTON_3 = V0_PIN_BUTTON_3;
-		PIN_RFRX = V0_PIN_RFRX;
-		PIN_RFTX = V0_PIN_RFTX;
-		PIN_BOOST = V0_PIN_BOOST;
-		PIN_BOOST_EN = V0_PIN_BOOST_EN;
-		PIN_SENSOR1 = V0_PIN_SENSOR1;
-		PIN_SENSOR2 = V0_PIN_SENSOR2;
+	drio = new MCP23017(ACDR_I2CADDR);
 
-		// on revision 0, main IOEXP and driver IOEXP are two separate PCF8574 chips
-		if(hw_type==HW_TYPE_DC) {
-			drio = new PCF8574(DCDR_I2CADDR);
-		} else if(hw_type==HW_TYPE_LATCH) {
-			drio = new PCF8574(LADR_I2CADDR);
-		} else {
-			drio = new PCF8574(ACDR_I2CADDR);
-		}
+	mainio = drio;
 
-		mainio = new PCF8574(MAIN_I2CADDR);
-		mainio->i2c_write(0, 0x0F); // set lower four bits of main PCF8574 (8-ch) to high
+	pinMode(16, INPUT);
 
-		digitalWriteExt(V0_PIN_PWR_TX, 1); // turn on TX power
-		digitalWriteExt(V0_PIN_PWR_RX, 1); // turn on RX power
-		pinModeExt(PIN_BUTTON_2, INPUT_PULLUP);
-		digitalWriteExt(PIN_BOOST, LOW);
-		digitalWriteExt(PIN_BOOST_EN, LOW);
-		digitalWriteExt(PIN_LATCH_COM, LOW);
+	// revision 2
+	hw_rev = 2;
 
-	} else {
+	mainio->i2c_write(MCP_CONFIG_REG, V2_IO_CONFIG);
+	mainio->i2c_write(MCP_OUTPUT_REG, V2_IO_OUTPUT);
 
-		if(hw_type==HW_TYPE_DC) {
-			drio = new PCA9555(DCDR_I2CADDR);
-		} else if(hw_type==HW_TYPE_LATCH) {
-			drio = new PCA9555(LADR_I2CADDR);
-		} else {
-			drio = new PCA9555(ACDR_I2CADDR);
-		}
-		mainio = drio;
-
-		pinMode(16, INPUT);
-		if(digitalRead(16)==LOW) {
-			// revision 1
-			hw_rev = 1;
-			mainio->i2c_write(NXP_CONFIG_REG, V1_IO_CONFIG);
-			mainio->i2c_write(NXP_OUTPUT_REG, V1_IO_OUTPUT);
-
-			PIN_BUTTON_1 = V1_PIN_BUTTON_1;
-			PIN_BUTTON_2 = V1_PIN_BUTTON_2;
-			PIN_BUTTON_3 = V1_PIN_BUTTON_3;
-			PIN_RFRX = V1_PIN_RFRX;
-			PIN_RFTX = V1_PIN_RFTX;
-			PIN_IOEXP_INT = V1_PIN_IOEXP_INT;
-			PIN_BOOST = V1_PIN_BOOST;
-			PIN_BOOST_EN = V1_PIN_BOOST_EN;
-			PIN_LATCH_COM = V1_PIN_LATCH_COM;
-			PIN_SENSOR1 = V1_PIN_SENSOR1;
-			PIN_SENSOR2 = V1_PIN_SENSOR2;
-		} else {
-			// revision 2
-			hw_rev = 2;
-			mainio->i2c_write(NXP_CONFIG_REG, V2_IO_CONFIG);
-			mainio->i2c_write(NXP_OUTPUT_REG, V2_IO_OUTPUT);
-
-			PIN_BUTTON_1 = V2_PIN_BUTTON_1;
-			PIN_BUTTON_2 = V2_PIN_BUTTON_2;
-			PIN_BUTTON_3 = V2_PIN_BUTTON_3;
-			PIN_RFTX = V2_PIN_RFTX;
-			PIN_BOOST = V2_PIN_BOOST;
-			PIN_BOOST_EN = V2_PIN_BOOST_EN;
-			PIN_LATCH_COMK = V2_PIN_LATCH_COMK; // os3.2latch uses H-bridge separate cathode and anode design
-			PIN_LATCH_COMA = V2_PIN_LATCH_COMA;
-			PIN_SENSOR1 = V2_PIN_SENSOR1;
-			PIN_SENSOR2 = V2_PIN_SENSOR2;
-		}
-	}
-
+	PIN_BUTTON_1 = V2_PIN_BUTTON_1;
+	PIN_BUTTON_2 = V2_PIN_BUTTON_2;
+	PIN_BUTTON_3 = V2_PIN_BUTTON_3;
+	PIN_RFTX = V2_PIN_RFTX;
+	PIN_BOOST = V2_PIN_BOOST;
+	PIN_BOOST_EN = V2_PIN_BOOST_EN;
+	PIN_LATCH_COMK = V2_PIN_LATCH_COMK; // os3.2latch uses H-bridge separate cathode and anode design
+	PIN_LATCH_COMA = V2_PIN_LATCH_COMA;
+	PIN_SENSOR1 = V2_PIN_SENSOR1;
+	PIN_SENSOR2 = V2_PIN_SENSOR2;
+		
 	/* detect expanders */
 	for(byte i=0;i<(MAX_NUM_BOARDS)/2;i++)
 		expanders[i] = NULL;
@@ -973,188 +874,18 @@ void OpenSprinkler::begin() {
 #endif
 }
 
-#if defined(ESP8266)
-/** LATCH boost voltage
- *
- */
-void OpenSprinkler::latch_boost() {
-	digitalWriteExt(PIN_BOOST, HIGH);      // enable boost converter
-	delay((int)iopts[IOPT_BOOST_TIME]<<2); // wait for booster to charge
-	digitalWriteExt(PIN_BOOST, LOW);       // disable boost converter
-}
-
-/** Set all zones (for LATCH controller)
- *  This function sets all zone pins (including COM) to a specified value
- */
-void OpenSprinkler::latch_setallzonepins(byte value) {
-	digitalWriteExt(PIN_LATCH_COM, value);  // set latch com pin
-	// Handle driver board (on main controller)
-	if(drio->type==IOEXP_TYPE_9555) { // LATCH contorller only uses PCA9555, no other type
-		uint16_t reg = drio->i2c_read(NXP_OUTPUT_REG);  // read current output reg value
-		if(value) reg |= 0x00FF;  // first 8 zones are the lowest 8 bits of main driver board
-		else reg &= 0xFF00;
-		drio->i2c_write(NXP_OUTPUT_REG, reg); // write value to register
-	}
-	// Handle all expansion boards
-	for(byte i=0;i<MAX_EXT_BOARDS/2;i++) {
-		if(expanders[i]->type==IOEXP_TYPE_9555) {
-			expanders[i]->i2c_write(NXP_OUTPUT_REG, value?0xFFFF:0x0000);
-		}
-	}
-}
-
-void OpenSprinkler::latch_disable_alloutputs_v2() {
-	digitalWriteExt(PIN_LATCH_COMA, LOW);
-	digitalWriteExt(PIN_LATCH_COMK, LOW);
-
-	// latch v2 has a pca9555 the lowest 8 bits of which control all h-bridge anode pins
-	drio->i2c_write(NXP_OUTPUT_REG, drio->i2c_read(NXP_OUTPUT_REG) & 0xFF00);
-	// latch v2 has a 74hc595 which controls all h-bridge cathode pins
-	drio->shift_out(V2_PIN_SRLAT, V2_PIN_SRCLK, V2_PIN_SRDAT, 0x00);
-
-	// todo: handle expander
-}
-
-/** Set one zone (for LATCH controller)
- *  This function sets one specified zone pin to a specified value
- */
-void OpenSprinkler::latch_setzonepin(byte sid, byte value) {
-	if(sid<8) { // on main controller
-		if(drio->type==IOEXP_TYPE_9555) { // LATCH contorller only uses PCA9555, no other type
-			uint16_t reg = drio->i2c_read(NXP_OUTPUT_REG);  // read current output reg value
-			if(value) reg |= (1<<sid);
-			else reg &= (~(1<<sid));
-			drio->i2c_write(NXP_OUTPUT_REG, reg);  // write value to register
-		}
-	} else {  // on expander
-		byte bid=(sid-8)>>4;
-		uint16_t s=(sid-8)&0x0F;
-		if(expanders[bid]->type==IOEXP_TYPE_9555) {
-			uint16_t reg = expanders[bid]->i2c_read(NXP_OUTPUT_REG);  // read current output reg value
-			if(value) reg |= (1<<s);
-			else reg &= (~(1<<s));
-			expanders[bid]->i2c_write(NXP_OUTPUT_REG, reg);
-		}
-	}
-}
-
-void OpenSprinkler::latch_setzoneoutput_v2(byte sid, byte A, byte K) {
-	if(A==HIGH && K==HIGH) return; // A and K must not be HIGH at the same time
-
-	if(sid<8) { // on main controller
-		// v2 latch driver has one PCA9555, the lowest 8-bits of which control all anode pins
-		// and one 74HC595, which controls all cathod pins
-		uint16_t reg = drio->i2c_read(NXP_OUTPUT_REG);
-		if(A) reg |= (1<<sid); // lowest 8 bits of 9555 control output anodes
-		else reg &= (~(1<<sid));
-		drio->i2c_write(NXP_OUTPUT_REG, reg);
-
-		drio->shift_out(V2_PIN_SRLAT, V2_PIN_SRCLK, V2_PIN_SRDAT, K ? (1<<sid) : 0);
-
-	} else { // on expander
-		// todo: handle expander
-	}
-}
-
-/** LATCH open / close a station
- *
- */
-void OpenSprinkler::latch_open(byte sid) {
-	if(hw_rev==2) {
-		DEBUG_PRINTLN(F("latch_open_v2"));
-		latch_disable_alloutputs_v2(); // disable all output pins
-		latch_boost(); // generate boost voltage
-		digitalWriteExt(PIN_LATCH_COMA, HIGH); // enable COM+
-		latch_setzoneoutput_v2(sid, LOW, HIGH); // enable sid-
-		digitalWriteExt(PIN_BOOST_EN, HIGH); // enable output path
-		delay(150);
-		digitalWriteExt(PIN_BOOST_EN, LOW); // disabled output boosted voltage path
-		latch_disable_alloutputs_v2(); // disable all output pins
-	} else {
-		latch_boost();  // boost voltage
-		latch_setallzonepins(HIGH);  // set all switches to HIGH, including COM
-		latch_setzonepin(sid, LOW); // set the specified switch to LOW
-		delay(1); // delay 1 ms for all gates to stablize
-		digitalWriteExt(PIN_BOOST_EN, HIGH); // dump boosted voltage
-		delay(100);                          // for 100ms
-		latch_setzonepin(sid, HIGH);  // set the specified switch back to HIGH
-		digitalWriteExt(PIN_BOOST_EN, LOW);  // disable boosted voltage
-	}
-}
-
-void OpenSprinkler::latch_close(byte sid) {
-	if(hw_rev==2) {
-		DEBUG_PRINTLN(F("latch_close_v2"));
-		latch_disable_alloutputs_v2(); // disable all output pins
-		latch_boost(); // generate boost voltage
-		latch_setzoneoutput_v2(sid, HIGH, LOW); // enable sid+
-		digitalWriteExt(PIN_LATCH_COMK, HIGH); // enable COM-
-		digitalWriteExt(PIN_BOOST_EN, HIGH); // enable output path
-		delay(150);
-		digitalWriteExt(PIN_BOOST_EN, LOW); // disable output boosted voltage path
-		latch_disable_alloutputs_v2(); // disable all output pins
-	} else {
-		latch_boost();  // boost voltage
-		latch_setallzonepins(LOW);  // set all switches to LOW, including COM
-		latch_setzonepin(sid, HIGH);// set the specified switch to HIGH
-		delay(1); // delay 1 ms for all gates to stablize
-		digitalWriteExt(PIN_BOOST_EN, HIGH); // dump boosted voltage
-		delay(100);                          // for 100ms
-		latch_setzonepin(sid, LOW);  // set the specified switch back to LOW
-		digitalWriteExt(PIN_BOOST_EN, LOW);  // disable boosted voltage
-		latch_setallzonepins(HIGH);  // set all switches back to HIGH
-	}
-}
-
-/**
- * LATCH version of apply_all_station_bits
- */
-void OpenSprinkler::latch_apply_all_station_bits() {
-	if(hw_type==HW_TYPE_LATCH && engage_booster) {
-		for(byte i=0;i<nstations;i++) {
-			byte bid=i>>3;
-			byte s=i&0x07;
-			byte mask=(byte)1<<s;
-			if(station_bits[bid] & mask) {
-				if(prev_station_bits[bid] & mask) continue; // already set
-				latch_open(i);
-			} else {
-				if(!(prev_station_bits[bid] & mask)) continue; // already reset
-				latch_close(i);
-			}
-		}
-		engage_booster = 0;
-		memcpy(prev_station_bits, station_bits, MAX_NUM_BOARDS);
-	}
-}
-#endif
-
 /** Apply all station bits
  * !!! This will activate/deactivate valves !!!
  */
 void OpenSprinkler::apply_all_station_bits() {
-
-#if defined(ESP8266)
-	if(hw_type==HW_TYPE_LATCH) {
-		// if controller type is latching, the control mechanism is different
-		// hence will be handled separately
-		latch_apply_all_station_bits();
-	} else {
-		// Handle DC booster
-		if(hw_type==HW_TYPE_DC && engage_booster) {
-			// for DC controller: boost voltage and enable output path
-			digitalWriteExt(PIN_BOOST_EN, LOW);  // disfable output path
-			digitalWriteExt(PIN_BOOST, HIGH);    // enable boost converter
-			delay((int)iopts[IOPT_BOOST_TIME]<<2);  // wait for booster to charge
-			digitalWriteExt(PIN_BOOST, LOW);  // disable boost converter
-			digitalWriteExt(PIN_BOOST_EN, HIGH);  // enable output path
-			engage_booster = 0;
-		}
+	{
 
 		// Handle driver board (on main controller)
 		if(drio->type==IOEXP_TYPE_8574) {
 			/* revision 0 uses PCF8574 with active low logic, so all bits must be flipped */
 			drio->i2c_write(NXP_OUTPUT_REG, ~station_bits[0]);
+		} else if(drio->type==IOEXP_TYPE_MCP23017) {
+			drio->i2c_write(MCP_OUTPUT_REG, station_bits[0]+station_bits[1]<<8); // write value to register
 		} else if(drio->type==IOEXP_TYPE_9555) {
 			/* revision 1 uses PCA9555 with active high logic */
 			uint16_t reg = drio->i2c_read(NXP_OUTPUT_REG);  // read current output reg value
@@ -1164,58 +895,18 @@ void OpenSprinkler::apply_all_station_bits() {
 
 		// Handle expansion boards
 		for(int i=0;i<MAX_EXT_BOARDS/2;i++) {
-			uint16_t data = station_bits[i*2+2];
-			data = (data<<8) + station_bits[i*2+1];
+			uint16_t data = station_bits[i*2+3];
+			data = (data<<8) + station_bits[i*2+2];
 			if(expanders[i]->type==IOEXP_TYPE_9555) {
 				expanders[i]->i2c_write(NXP_OUTPUT_REG, data);
-			} else {
+			} else if(expanders[i]->type==IOEXP_TYPE_MCP23017) {
+			} else{
 				expanders[i]->i2c_write(NXP_OUTPUT_REG, ~data);
 			}
 		}
 	}
 
 	byte bid, s, sbits;
-#else
-	digitalWrite(PIN_SR_LATCH, LOW);
-	byte bid, s, sbits;
-
-	// Shift out all station bit values
-	// from the highest bit to the lowest
-	for(bid=0;bid<=MAX_EXT_BOARDS;bid++) {
-		if (status.enabled)
-			sbits = station_bits[MAX_EXT_BOARDS-bid];
-		else
-			sbits = 0;
-
-		for(s=0;s<8;s++) {
-			digitalWrite(PIN_SR_CLOCK, LOW);
-	#if defined(OSPI) // if OSPI, use dynamically assigned pin_sr_data
-			digitalWrite(pin_sr_data, (sbits & ((byte)1<<(7-s))) ? HIGH : LOW );
-	#else
-			digitalWrite(PIN_SR_DATA, (sbits & ((byte)1<<(7-s))) ? HIGH : LOW );
-	#endif
-			digitalWrite(PIN_SR_CLOCK, HIGH);
-		}
-	}
-
-	#if defined(ARDUINO)
-	if((hw_type==HW_TYPE_DC) && engage_booster) {
-		// for DC controller: boost voltage
-		digitalWrite(PIN_BOOST_EN, LOW);  // disable output path
-		digitalWrite(PIN_BOOST, HIGH);    // enable boost converter
-		delay((int)iopts[IOPT_BOOST_TIME]<<2);  // wait for booster to charge
-		digitalWrite(PIN_BOOST, LOW);  // disable boost converter
-
-		digitalWrite(PIN_BOOST_EN, HIGH);  // enable output path
-		digitalWrite(PIN_SR_LATCH, HIGH);
-		engage_booster = 0;
-	} else {
-		digitalWrite(PIN_SR_LATCH, HIGH);
-	}
-	#else
-	digitalWrite(PIN_SR_LATCH, HIGH);
-	#endif
-#endif
 
 	if(iopts[IOPT_SPE_AUTO_REFRESH]) {
 		// handle refresh of RF and remote stations
@@ -2514,7 +2205,7 @@ void OpenSprinkler::lcd_print_screen(char c) {
 	lcd.setCursor(LCD_CURSOR_NETWORK, 1);
 #if defined(ESP8266)
 	if(useEth) {
-		lcd.write(eth.connected()?ICON_ETHER_CONNECTED:ICON_ETHER_DISCONNECTED);	// todo: need to detect ether status
+			// todo: need to detect ether status
 	}
 	else
 		lcd.write(WiFi.status()==WL_CONNECTED?ICON_WIFI_CONNECTED:ICON_WIFI_DISCONNECTED);

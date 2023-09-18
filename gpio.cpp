@@ -44,6 +44,10 @@ byte IOEXP::detectType(uint8_t address) {
 	if(low==0x00 && high==0x00) {
 		return IOEXP_TYPE_9555; // PCA9555 has polarity register which inits to 0
 	}
+	if(low==0xFF && high==0xFF) {
+		return IOEXP_TYPE_MCP23017; // PCA9555 has polarity register which inits to 0
+	}
+	
 	return IOEXP_TYPE_8575;
 }
 
@@ -116,6 +120,27 @@ uint16_t PCF8575::i2c_read(uint8_t reg) {
 }
 
 void PCF8575::i2c_write(uint8_t reg, uint16_t v) {
+	if(address==255)	return;
+	Wire.beginTransmission(address);
+	// todo: handle inputmask (not necessary unless if using any pin as input)
+	Wire.write(v&0xff);
+	Wire.write(v>>8);
+	Wire.endTransmission();
+}
+
+uint16_t MCP23017::i2c_read(uint8_t reg) {
+	if(address==255)	return 0xFFFF;
+	Wire.beginTransmission(address);
+	Wire.write(reg);
+	Wire.endTransmission();
+	if(Wire.requestFrom(address, (uint8_t)2) != 2) return 0xFFFF;
+	uint16_t data0 = Wire.read();
+	uint16_t data1 = Wire.read();
+	Wire.endTransmission();
+	return data0+(data1<<8);
+}
+
+void MCP23017::i2c_write(uint8_t reg, uint16_t v) {
 	if(address==255)	return;
 	Wire.beginTransmission(address);
 	// todo: handle inputmask (not necessary unless if using any pin as input)
